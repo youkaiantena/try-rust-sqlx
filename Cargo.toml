@@ -1,5 +1,5 @@
 [package]
-name = "try-rust-sqlx"
+name = "try_rust_sqlx"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,3 +12,7 @@ futures = "0.3.21"
 serde = "1.0.143"
 sqlx = {version = "0.6.1", features = ["runtime-tokio-native-tls", "mysql", "chrono", "json"]}
 tokio = {version="1.20.1", features = ["full"]}
+
+[[bin]]
+name = "init_db"
+path = "src/init_db.rs"
