@@ -6,7 +6,7 @@ use sqlx::{
     Pool
 };
 
-// 本番DB（想定）のデータベース接続文字列
+// 本番DB（想定）のデ&ータベース接続文字列
 // 'static ライフタイムは、 プログラムが走っている間ずっと有効な値への参照に対してつけられる、最大のライフタイム
 // &'static => 文字列リテラルへの 'static ライフタイムを持つ参照
 pub const DB_STRING_PRODUCTION: &'static str = "mysql://user:pass@localhost:53306/production";
@@ -67,10 +67,10 @@ impl IrisMeasurement {
 
         let result = sqlx::query(&sql)
             .bind(self.sepal_length)
-            .bind(self.sepal_length)
-            .bind(self.sepal_length)
-            .bind(self.sepal_length)
-            .bind(self.sepal_length)
+            .bind(self.sepal_width)
+            .bind(self.petal_length)
+            .bind(self.petal_width)
+            .bind(self.class)
             .execute(pool) // .executeの引数はexecutor
             .await;
 
@@ -94,4 +94,66 @@ impl IrisMeasurement {
         Ok(rows)
     }
 
+}
+
+#[cfg(test)]
+mod test {
+    // testsモジュールは、内部モジュールなので、外部モジュール内のテスト配下にあるコードを内部モジュールのスコープに持っていく必要があります。
+    // ここではglobを使用して、外部モジュールで定義したもの全てがこのtestsモジュールでも使用可能になるようにしています。
+    use super::*;
+
+    pub async fn trucate_table(pool: &Pool<MySql>, name: &str) -> Result<MySqlQueryResult, sqlx::Error> {
+        let sql = format!("TRUNCATE TABLE {}", name);
+        pool.execute(sql.as_str()).await
+    }
+
+    // テスト用データ生成
+    fn create_fake() -> IrisMeasurement {
+        IrisMeasurement {
+            id: None,
+            sepal_length: 3.0,
+            sepal_width: 4.0,
+            petal_length: 5.0,
+            petal_width: 6.0,
+            class: "Iris-virginica".to_string()
+        }
+    }
+
+    // テーブルの生成と初期化
+    pub async fn setup_database(pool: &Pool<MySql>) {
+        let _ = IrisMeasurement::create_table(pool).await.unwrap();
+        let _ = trucate_table(pool, IrisMeasurement::TABLE_NAME).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn create_and_select_ok() {
+        // テスト用のデータベースに接続
+        let pool = create_pool(DB_STRING_TEST).await.unwrap();
+        // 前回のテスト実行による副作用を初期化
+        // 何も返ってこないのでunwrap()していない
+        let _ = setup_database(&pool).await;
+        let measurement = create_fake();
+        let insert_result = measurement.insert(&pool).await.unwrap();
+
+        // insert文によってデータが記録されたかを確認する
+        // assert_eq!マクロを利用する
+        assert_eq!(
+            "MySqlQueryResult { rows_affected: 1, last_insert_id: 1 }",
+            format!("{:?}", insert_result)
+        );
+
+        let actual1 = IrisMeasurement::find_by_class(&pool, "Iris-virginica")
+            .await
+            .unwrap();
+
+        // 条件を満たす登録データが取得できたか検証する
+        assert_eq!(actual1.len(), 1);
+
+        let actual2 = IrisMeasurement::find_by_class(&pool, "abc")
+            .await
+            .unwrap();
+
+        // 条件を満たす登録データは取得できないことを検証する
+        assert_eq!(actual2.len(), 0);
+    }
 }
